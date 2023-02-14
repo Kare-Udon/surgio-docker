@@ -1,16 +1,12 @@
-version: '2'
+version: '3'
 
 services:
   surgio:
     image: quericy/surgio-docker:latest
-    restart: always
-    container_name: surgio-docker-container
+    build: .
+    restart: unless-stopped
+    container_name: surgio
     ports:
         - "23000:3000"
     volumes:
         - ./config:/var/config
-    networks:
-        - app_net
-networks:
-    app_net:
-        external: true
