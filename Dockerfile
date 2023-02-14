@@ -1,13 +1,13 @@
-FROM mhart/alpine-node:12
+FROM node:18-alpine
 
 COPY docker-entrypoint.sh gateway.js /
 
 # init surgio and rules
-RUN  apk update && apk add bash && \
+RUN  apk -u add bash && \
      chmod +x /docker-entrypoint.sh && \
-     /usr/bin/npm init surgio-store /my-rule-store --use-cnpm  && \
-     cd /my-rule-store && /usr/bin/npm install surgio@latest && /usr/bin/npm install @surgio/gateway@latest && \
-     /usr/bin/npm cache clean --force
+     npm init surgio-store surgio && \
+     cd /surgio && npm install surgio@latest && npm install @surgio/gateway@latest && \
+     npm cache clean --force
 
 # Persistent config file
 VOLUME [ "/var/config"]
