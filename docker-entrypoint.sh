@@ -5,18 +5,19 @@ ln -sf /usr/share/zoneinfo/${TZ:-"Asia/Shanghai"} /etc/localtime
 echo ${TZ:-"Asia/Shanghai"} > /etc/timezone
 
 # create gateway
-\cp -rf /gateway.js /my-rule-store/
+\cp -rf /gateway.js /surgio/
 
 # custom config
 config_dir="/var/config"
 if [ -d $config_dir ]&&[ "$(ls -A $config_dir)" ];then
-    \cp -rf /var/config/* /my-rule-store/
+    rm -rf /surgio/provider/* /surgio/template/*
+    \cp -rf /var/config/* /surgio/
 fi
 
-if [ -f /my-rule-store/package.json ];then
-    sed -i '/"scripts": {/a "generage": "surgio generate",' /my-rule-store/package.json
+if [ -f /surgio/package.json ];then
+    sed -i '/"scripts": {/a "generage": "surgio generate",' /surgio/package.json
 fi
 
 # generate rules and run gateway
-cd /my-rule-store
+cd /surgio
 npm run generage && node gateway.js
