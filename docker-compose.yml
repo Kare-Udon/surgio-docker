@@ -10,3 +10,5 @@ services:
         - "23000:3000"
     volumes:
         - ./config:/var/config
+    environment:
+      - AUTOGEN_INTERVAL="1h" # format: xh | xm | xhxm
