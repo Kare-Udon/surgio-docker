@@ -19,6 +19,7 @@ if [ -f /surgio/package.json ];then
 fi
 
 # add cron job
+cat /dev/null > /etc/crontabs/root  # clear cron job
 if [ $AUTOGEN_INTERVAL ];then
     hour=$(echo "$AUTOGEN_INTERVAL" | grep -oP '\d+(?=h)')
     minute=$(echo "$AUTOGEN_INTERVAL" | grep -oP '\d+(?=m)')
