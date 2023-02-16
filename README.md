@@ -28,6 +28,18 @@ Access `http://localhost:23000`, you should be able to see the welcome page of S
 
 ### How to configure
 
+#### Update my configuration
+
+If you want to update your custom configuration, you can simply replace the configuration files in the `config` folder.
+
+Then run the following command to restart the service.
+
+```bash
+docker-compose restart
+```
+
+Then, you can access `http://localhost:23000` to see the updated configuration.
+
 #### Exposed Ports
 
 By default, the port `23000` is exposed.
