@@ -2,7 +2,7 @@ version: '3'
 
 services:
   surgio:
-    image: laoliu233/surgio-docker:latest
+    image: laoliu233/surgio-docker:latest # or ghcr.io/kare-udon/surgio-docker:latest
     build: .
     restart: unless-stopped
     container_name: surgio
