@@ -26,7 +26,9 @@ jobs:
 
       - name: Get latest release version
         id: vars
-        run: echo "VERSION=$(cat release-versions/surgio-latest.txt)" >> $GITHUB_ENV
+        run: |
+          VERSION=$(cat release-versions/surgio-latest.txt)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -46,21 +48,21 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          labels: |
-            org.opencontainers.image.version=${{ env.VERSION }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         run: |
           mkdir -p /tmp/digests
           digest="${{ steps.build.outputs.digest }}"
-          echo "$digest" > "/tmp/digests/${{ matrix.platform }}.sha256"
+          plat_safe=$(echo "${{ matrix.platform }}" | tr '/' '-')
+          echo "PLAT_SAFE=$plat_safe" >> "$GITHUB_ENV"
+          echo "${digest#sha256:}" > "/tmp/digests/${plat_safe}.sha256"
 
       - name: Upload digest (one per platform)
         uses: actions/upload-artifact@v4
         with:
-          name: digests-${{ matrix.platform }}
-          path: /tmp/digests/*
+          name: digests-${{ env.PLAT_SAFE }}
+          path: /tmp/digests/*.sha256
           if-no-files-found: error
           retention-days: 1
 
@@ -107,7 +109,7 @@ jobs:
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-          $(for f in *.sha256; do printf '${{ env.REGISTRY_IMAGE }}@%s ' "$(cat "$f")"; done)
+            $(for digestfile in *.sha256; do printf '${{ env.REGISTRY_IMAGE }}@sha256:%s ' "$(cat "$digestfile")"; done)
 
       - name: Inspect image
         run: docker buildx imagetools inspect ${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
