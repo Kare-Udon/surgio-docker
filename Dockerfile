@@ -1,14 +1,23 @@
-FROM node:18-alpine
+FROM node:26-alpine
 
-COPY docker-entrypoint.sh gateway.js /
+ARG SURGIO_VERSION=4.0.0
 
-# init surgio and rules
-RUN  apk -u add bash grep && \
+COPY docker-entrypoint.sh /
+
+# 初始化 Surgio v4 配置和运行依赖
+RUN  apk add --no-cache bash tzdata && \
      chmod +x /docker-entrypoint.sh && \
-     npm init surgio-store surgio && \
-     cd /surgio && npm install surgio@latest && npm install @surgio/gateway@latest && \
+     npm init --yes surgio-store@4 surgio && \
+     cd /surgio && npm install "surgio@${SURGIO_VERSION}" '@surgio/gateway@^3' && \
+     npm prune --omit=dev && \
+     mkdir defaults && mv surgio.project.ts template defaults/ && \
      npm cache clean --force
 
-# Persistent config file
+COPY gateway.mjs runtime.mjs /surgio/
+
+WORKDIR /surgio
+ENV NODE_USE_ENV_PROXY=1
+
+# 挂载用户配置
 VOLUME [ "/var/config"]
 ENTRYPOINT [ "/docker-entrypoint.sh" ]

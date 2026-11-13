@@ -12,11 +12,16 @@ jobs:
           token: ${{ secrets.REPO_SCOPED_TOKEN }}
       - name: Fetch release version
         run: |
-          curl -sL https://api.github.com/repos/surgioproject/surgio/releases/latest | \
-          jq -r ".tag_name" > release-versions/surgio-latest.txt
+          curl -fsSL --max-time 30 https://api.github.com/repos/surgioproject/surgio/releases/latest | \
+          jq -er '.tag_name | select(test("^(surgio@|v)?4\\.[0-9]+\\.[0-9]+$"))' > release-versions/surgio-latest.txt
       - name: Check for modified files
         id: git-check
-        run: echo ::set-output name=modified::$([ -z "`git status --porcelain`" ] && echo "false" || echo "true")
+        run: |
+          if git diff --quiet -- release-versions/surgio-latest.txt; then
+            echo "modified=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "modified=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Commit latest release version
         if: steps.git-check.outputs.modified == 'true'
         run: |

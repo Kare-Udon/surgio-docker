@@ -5,20 +5,53 @@ on:
   push:
     paths:
       - 'release-versions/*'
+      - 'Dockerfile'
+      - 'docker-entrypoint.sh'
+      - 'gateway.mjs'
+      - 'runtime.mjs'
+      - 'tests/**'
+      - '.dockerignore'
+      - '.github/workflows/docker-image.yaml'
+
+permissions:
+  contents: read
 
 env:
   REGISTRY_IMAGE: laoliu233/surgio-docker
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Test configuration reload and recovery
+        run: node --test tests/runtime.test.mjs
+      - name: Build smoke test image
+        run: |
+          VERSION=$(cat release-versions/surgio-latest.txt)
+          VERSION=${VERSION#surgio@}
+          VERSION=${VERSION#v}
+          docker build --build-arg "SURGIO_VERSION=$VERSION" -t surgio-docker:v4-local .
+      - name: Test real Surgio and Gateway in Docker
+        run: node tests/docker-smoke.mjs
+
   build:
     runs-on: ubuntu-latest
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      version: ${{ steps.vars.outputs.version }}
+      ghcr_image: ${{ steps.vars.outputs.ghcr_image }}
     strategy:
       fail-fast: false
       matrix:
         platform:
           - linux/amd64
-          - linux/arm/v6
-          - linux/arm/v7
           - linux/arm64
     steps:
       - name: Checkout
@@ -28,7 +61,11 @@ jobs:
         id: vars
         run: |
           VERSION=$(cat release-versions/surgio-latest.txt)
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          VERSION=${VERSION#surgio@}
+          VERSION=${VERSION#v}
+          [[ "$VERSION" =~ ^4\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -42,13 +79,22 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          build-args: SURGIO_VERSION=${{ steps.vars.outputs.version }}
+          outputs: |
+            type=image,"name=${{ env.REGISTRY_IMAGE }},${{ steps.vars.outputs.ghcr_image }}",push-by-digest=true,name-canonical=true,push=true
 
       - name: Export digest
         run: |
@@ -69,6 +115,15 @@ jobs:
   merge:
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        registry: [dockerhub, ghcr]
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      REGISTRY_IMAGE: ${{ matrix.registry == 'ghcr' && needs.build.outputs.ghcr_image || 'laoliu233/surgio-docker' }}
     steps:
       - name: Download all digests
         uses: actions/download-artifact@v4
@@ -82,11 +137,10 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.REGISTRY_IMAGE }}
-            ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=${{ env.VERSION }}
             type=raw,value=latest
